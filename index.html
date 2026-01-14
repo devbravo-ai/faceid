@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ID Verification + Live Barcode Scanner</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            background: #16213e;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status.loading { border-left: 4px solid #ffd700; }
+        .status.ready { border-left: 4px solid #00ff88; }
+        .status.error { border-left: 4px solid #ff4757; }
+        
+        .main-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .left-panel {
+            flex: 2;
+            min-width: 300px;
+        }
+        .right-panel {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        /* Scanner Section */
+        .scanner-section {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .scanner-section h2 {
+            margin-top: 0;
+            color: #a855f7;
+        }
+        
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .scanner-container video {
+            width: 100%;
+            display: block;
+        }
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        .scanner-target {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 35%;
+            border: 3px solid #a855f7;
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .scanner-target.scanning {
+            animation: pulse 1.5s infinite;
+        }
+        .scanner-target.found {
+            border-color: #00ff88;
+            box-shadow: 0 0 30px #00ff8866;
+            animation: none;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .scanner-corners {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 35%;
+        }
+        .corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-color: #a855f7;
+            border-style: solid;
+            transition: border-color 0.3s;
+        }
+        .corner.found { border-color: #00ff88; }
+        .corner-tl { top: -3px; left: -3px; border-width: 4px 0 0 4px; border-radius: 8px 0 0 0; }
+        .corner-tr { top: -3px; right: -3px; border-width: 4px 4px 0 0; border-radius: 0 8px 0 0; }
+        .corner-bl { bottom: -3px; left: -3px; border-width: 0 0 4px 4px; border-radius: 0 0 0 8px; }
+        .corner-br { bottom: -3px; right: -3px; border-width: 0 4px 4px 0; border-radius: 0 0 8px 0; }
+        
+        .scanner-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 75%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #a855f7, transparent);
+            animation: scan 2s linear infinite;
+        }
+        .scanner-line.found {
+            background: linear-gradient(90deg, transparent, #00ff88, transparent);
+            animation: none;
+        }
+        @keyframes scan {
+            0% { top: 35%; }
+            50% { top: 65%; }
+            100% { top: 35%; }
+        }
+        
+        .scanner-hint {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            padding: 8px;
+            background: rgba(0,0,0,0.5);
+        }
+        .scanner-hint.found {
+            background: rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+        }
+        
+        .scanner-placeholder {
+            width: 100%;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 15px;
+            color: #666;
+            background: #0f0f23;
+            border-radius: 8px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: #00a8cc;
+            transform: translateY(-2px);
+        }
+        .btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-scanner {
+            background: #a855f7;
+            font-size: 18px;
+            padding: 15px 30px;
+        }
+        .btn-scanner:hover {
+            background: #9333ea;
+        }
+        .btn-compare {
+            background: #00ff88;
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
+        }
+        .btn-compare:hover {
+            background: #00cc6a;
+        }
+        
+        .scanner-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        /* Face comparison section */
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .photo-box {
+            flex: 1;
+            min-width: 280px;
+            max-width: 500px;
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .photo-box h2 {
+            margin-top: 0;
+            color: #00d4ff;
+            font-size: 1.3em;
+        }
+        .photo-box .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+        .preview {
+            width: 100%;
+            height: 250px;
+            border: 2px dashed #444;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            background: #0f0f23;
+        }
+        .preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .preview canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .preview-placeholder {
+            color: #666;
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        
+        .detection-info {
+            margin-top: 12px;
+            padding: 10px;
+            background: #0f0f23;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+        .detection-info.warning { border-left: 3px solid #ffd700; }
+        .detection-info.good { border-left: 3px solid #00ff88; }
+        .detection-info.error { border-left: 3px solid #ff4757; }
+
+        /* Data Panel */
+        .data-panel {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            height: fit-content;
+            position: sticky;
+            top: 20px;
+        }
+        .data-panel h2 {
+            margin-top: 0;
+            color: #00d4ff;
+            font-size: 1.3em;
+        }
+        .data-status {
+            padding: 10px;
+            background: #0f0f23;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .data-status.complete { border-left: 3px solid #00ff88; }
+        .data-status.barcode { border-left: 3px solid #a855f7; }
+        
+        .data-source-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            background: #a855f722;
+            color: #a855f7;
+        }
+        
+        .extracted-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .field-group {
+            background: #0f0f23;
+            padding: 10px 12px;
+            border-radius: 6px;
+        }
+        .field-label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+        .field-value {
+            font-size: 15px;
+            color: #fff;
+            font-weight: 500;
+        }
+        .field-value.empty {
+            color: #666;
+            font-style: italic;
+        }
+        
+        .raw-text-toggle {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        .raw-text-toggle summary {
+            cursor: pointer;
+            color: #888;
+            font-size: 13px;
+        }
+        .raw-text {
+            margin-top: 10px;
+            padding: 10px;
+            background: #0f0f23;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 10px;
+            white-space: pre-wrap;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #aaa;
+        }
+
+        /* Results */
+        .results {
+            margin-top: 30px;
+            padding: 30px;
+            background: #16213e;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .results h2 { margin-top: 0; }
+        .distance-display {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+        .distance-display.high { color: #00ff88; }
+        .distance-display.medium { color: #ffd700; }
+        .distance-display.low { color: #ff4757; }
+        
+        .verdict {
+            font-size: 24px;
+            padding: 15px 30px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .verdict.match { background: #00ff8822; color: #00ff88; }
+        .verdict.no-match { background: #ff475722; color: #ff4757; }
+        
+        .threshold-bar {
+            margin: 30px auto;
+            max-width: 400px;
+        }
+        .threshold-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .threshold-bar-track {
+            height: 20px;
+            background: linear-gradient(to right, #00ff88 0%, #00ff88 40%, #ffd700 40%, #ffd700 60%, #ff4757 60%, #ff4757 100%);
+            border-radius: 10px;
+            position: relative;
+        }
+        .threshold-bar-marker {
+            position: absolute;
+            top: -5px;
+            width: 4px;
+            height: 30px;
+            background: white;
+            border-radius: 2px;
+            transform: translateX(-50%);
+        }
+        .threshold-bar-value {
+            position: absolute;
+            top: -25px;
+            transform: translateX(-50%);
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .details {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #888;
+        }
+
+        .camera-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #333;
+        }
+        video {
+            width: 100%;
+            border-radius: 8px;
+        }
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .camera-controls .btn {
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+        }
+        
+        .success-animation {
+            animation: successPop 0.5s ease-out;
+        }
+        @keyframes successPop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🪪 ID Verification System</h1>
+    
+    <div id="status" class="status loading">
+        Loading models...
+    </div>
+
+    <div class="main-container">
+        <div class="left-panel">
+            <!-- Barcode Scanner Section -->
+            <div class="scanner-section">
+                <h2>📊 Step 1: Scan License Barcode</h2>
+                <p style="color: #888; margin-top: -10px; margin-bottom: 20px;">
+                    Point camera at the <strong>BACK</strong> of the driver's license. Auto-captures when barcode is detected.
+                </p>
+                
+                <div class="scanner-container" id="scanner-container">
+                    <div class="scanner-placeholder" id="scanner-placeholder">
+                        <span style="font-size: 48px;">📷</span>
+                        <span>Click below to start scanning</span>
+                    </div>
+                    <video id="scanner-video" playsinline style="display: none;"></video>
+                    <div class="scanner-overlay" id="scanner-overlay" style="display: none;">
+                        <div class="scanner-target scanning" id="scanner-target"></div>
+                        <div class="scanner-corners">
+                            <div class="corner corner-tl"></div>
+                            <div class="corner corner-tr"></div>
+                            <div class="corner corner-bl"></div>
+                            <div class="corner corner-br"></div>
+                        </div>
+                        <div class="scanner-line" id="scanner-line"></div>
+                        <div class="scanner-hint" id="scanner-hint">
+                            Position barcode inside the box
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="scanner-controls">
+                    <button class="btn btn-scanner" id="start-scanner-btn" onclick="startScanner()">
+                        📷 Start Scanner
+                    </button>
+                    <button class="btn" id="stop-scanner-btn" onclick="stopScanner()" style="display: none; background: #ff4757;">
+                        ✕ Stop
+                    </button>
+                    <label class="btn" for="file-barcode" style="background: #666;">
+                        📁 Upload Instead
+                    </label>
+                    <input type="file" id="file-barcode" accept="image/*">
+                </div>
+            </div>
+
+            <!-- Face Comparison Section -->
+            <div class="container">
+                <div class="photo-box">
+                    <h2>🪪 Step 2: ID Photo (Face)</h2>
+                    <p class="subtitle">Front of ID for face detection</p>
+                    <div class="preview" id="preview1">
+                        <span class="preview-placeholder">
+                            📷 Upload front of ID
+                        </span>
+                    </div>
+                    <label class="btn" for="file1">📁 Upload</label>
+                    <input type="file" id="file1" accept="image/*">
+                    
+                    <div class="camera-section">
+                        <button class="btn" id="camera1-btn" onclick="startCamera(1)">📹 Camera</button>
+                        <video id="video1" autoplay playsinline style="display:none;"></video>
+                        <div class="camera-controls" id="camera1-controls" style="display:none;">
+                            <button class="btn" onclick="capturePhoto(1)">📸 Capture</button>
+                            <button class="btn" onclick="stopCamera(1)">✕</button>
+                        </div>
+                    </div>
+                    <div class="detection-info" id="detection1"></div>
+                </div>
+
+                <div class="photo-box">
+                    <h2>🧑 Step 3: Live Photo</h2>
+                    <p class="subtitle">The person to verify</p>
+                    <div class="preview" id="preview2">
+                        <span class="preview-placeholder">
+                            📷 Take a selfie
+                        </span>
+                    </div>
+                    <label class="btn" for="file2">📁 Upload</label>
+                    <input type="file" id="file2" accept="image/*">
+                    
+                    <div class="camera-section">
+                        <button class="btn" id="camera2-btn" onclick="startCamera(2)">📹 Camera</button>
+                        <video id="video2" autoplay playsinline style="display:none;"></video>
+                        <div class="camera-controls" id="camera2-controls" style="display:none;">
+                            <button class="btn" onclick="capturePhoto(2)">📸 Capture</button>
+                            <button class="btn" onclick="stopCamera(2)">✕</button>
+                        </div>
+                    </div>
+                    <div class="detection-info" id="detection2"></div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-compare" id="compare-btn" onclick="compareFaces()" disabled>
+                    🔬 Verify Identity
+                </button>
+            </div>
+
+            <div class="results" id="results" style="display: none;">
+                <h2>Verification Result</h2>
+                <div class="verdict" id="verdict">--</div>
+                <div class="threshold-bar">
+                    <div class="threshold-bar-label">
+                        <span>Strong Match</span>
+                        <span>Likely Match</span>
+                        <span>No Match</span>
+                    </div>
+                    <div class="threshold-bar-track">
+                        <div class="threshold-bar-marker" id="marker" style="left: 0%">
+                            <div class="threshold-bar-value" id="marker-value">0.00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="distance-display" id="distance">--</div>
+                <div class="details">Euclidean Distance (lower = more similar)</div>
+                <div class="details" id="details" style="margin-top: 30px;"></div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <div class="data-panel">
+                <h2>📋 Extracted ID Data</h2>
+                <div class="data-source-badge" id="data-source-badge" style="display: none;">
+                    📊 Source: Barcode
+                </div>
+                <div class="data-status" id="data-status">
+                    Waiting for barcode scan...
+                </div>
+                
+                <div class="extracted-fields">
+                    <div class="field-group">
+                        <div class="field-label">Full Name</div>
+                        <div class="field-value" id="field-name">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Date of Birth</div>
+                        <div class="field-value" id="field-dob">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">License Number</div>
+                        <div class="field-value" id="field-license">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Expiration Date</div>
+                        <div class="field-value" id="field-exp">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Issue Date</div>
+                        <div class="field-value" id="field-issue">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Address</div>
+                        <div class="field-value" id="field-address">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Sex</div>
+                        <div class="field-value" id="field-sex">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Height</div>
+                        <div class="field-value" id="field-height">—</div>
+                    </div>
+                    <div class="field-group">
+                        <div class="field-label">Eye Color</div>
+                        <div class="field-value" id="field-eyes">—</div>
+                    </div>
+                </div>
+                
+                <details class="raw-text-toggle">
+                    <summary>View raw barcode data</summary>
+                    <div class="raw-text" id="raw-text">No data yet.</div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let modelsLoaded = false;
+        let detections = { 1: null, 2: null };
+        let streams = { 1: null, 2: null };
+        let codeReader = null;
+        let scannerStream = null;
+        let isScanning = false;
+
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+
+        // Initialize
+        async function loadModels() {
+            const statusEl = document.getElementById('status');
+            try {
+                statusEl.textContent = 'Loading face detection...';
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                
+                statusEl.textContent = 'Initializing barcode scanner...';
+                const hints = new Map();
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.PDF_417]);
+                hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+                codeReader = new ZXing.BrowserMultiFormatReader(hints);
+                
+                modelsLoaded = true;
+                statusEl.textContent = '✅ Ready! Start by scanning the barcode on the back of the ID.';
+                statusEl.className = 'status ready';
+            } catch (err) {
+                statusEl.textContent = '❌ Error: ' + err.message;
+                statusEl.className = 'status error';
+                console.error(err);
+            }
+        }
+
+        // Live barcode scanner
+        async function startScanner() {
+            if (isScanning) return;
+            
+            const video = document.getElementById('scanner-video');
+            const placeholder = document.getElementById('scanner-placeholder');
+            const overlay = document.getElementById('scanner-overlay');
+            const startBtn = document.getElementById('start-scanner-btn');
+            const stopBtn = document.getElementById('stop-scanner-btn');
+            
+            try {
+                // Get camera stream
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                video.srcObject = scannerStream;
+                video.style.display = 'block';
+                placeholder.style.display = 'none';
+                overlay.style.display = 'block';
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                
+                isScanning = true;
+                
+                // Start continuous decoding
+                codeReader.decodeFromVideoDevice(undefined, 'scanner-video', (result, err) => {
+                    if (result) {
+                        // Success! Barcode found
+                        onBarcodeDetected(result.text);
+                    }
+                    // Ignore errors - they just mean no barcode found in this frame
+                });
+                
+            } catch (err) {
+                alert('Could not access camera: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        function stopScanner() {
+            isScanning = false;
+            
+            if (codeReader) {
+                codeReader.reset();
+            }
+            
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(track => track.stop());
+                scannerStream = null;
+            }
+            
+            const video = document.getElementById('scanner-video');
+            const placeholder = document.getElementById('scanner-placeholder');
+            const overlay = document.getElementById('scanner-overlay');
+            const startBtn = document.getElementById('start-scanner-btn');
+            const stopBtn = document.getElementById('stop-scanner-btn');
+            
+            video.style.display = 'none';
+            placeholder.style.display = 'flex';
+            overlay.style.display = 'none';
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            
+            // Reset scanner visuals
+            resetScannerVisuals();
+        }
+
+        function resetScannerVisuals() {
+            const target = document.getElementById('scanner-target');
+            const line = document.getElementById('scanner-line');
+            const hint = document.getElementById('scanner-hint');
+            const corners = document.querySelectorAll('.corner');
+            
+            target.className = 'scanner-target scanning';
+            line.className = 'scanner-line';
+            hint.className = 'scanner-hint';
+            hint.textContent = 'Position barcode inside the box';
+            corners.forEach(c => c.classList.remove('found'));
+        }
+
+        function onBarcodeDetected(data) {
+            // Visual feedback
+            const target = document.getElementById('scanner-target');
+            const line = document.getElementById('scanner-line');
+            const hint = document.getElementById('scanner-hint');
+            const corners = document.querySelectorAll('.corner');
+            const container = document.getElementById('scanner-container');
+            
+            target.className = 'scanner-target found';
+            line.className = 'scanner-line found';
+            hint.className = 'scanner-hint found';
+            hint.textContent = '✅ Barcode captured!';
+            corners.forEach(c => c.classList.add('found'));
+            container.classList.add('success-animation');
+            
+            // Parse the data
+            parseAAMVA(data);
+            
+            // Update status
+            const badge = document.getElementById('data-source-badge');
+            badge.style.display = 'inline-block';
+            
+            const dataStatus = document.getElementById('data-status');
+            dataStatus.textContent = '✅ Data extracted successfully!';
+            dataStatus.className = 'data-status complete';
+            
+            // Stop scanner after short delay to show success state
+            setTimeout(() => {
+                stopScanner();
+                // Update placeholder to show success
+                const placeholder = document.getElementById('scanner-placeholder');
+                placeholder.innerHTML = `
+                    <span style="font-size: 48px;">✅</span>
+                    <span style="color: #00ff88;">Barcode scanned successfully!</span>
+                    <button class="btn" onclick="startScanner()" style="margin-top: 10px;">Scan Again</button>
+                `;
+            }, 1000);
+        }
+
+        // File upload fallback for barcode
+        document.getElementById('file-barcode').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const img = new Image();
+                    img.onload = async () => {
+                        try {
+                            const result = await codeReader.decodeFromImageElement(img);
+                            if (result) {
+                                onBarcodeDetected(result.text);
+                            }
+                        } catch (err) {
+                            alert('Could not read barcode from image. Try a clearer photo.');
+                            console.error(err);
+                        }
+                    };
+                    img.src = e.target.result;
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Parse AAMVA barcode data
+        function parseAAMVA(data) {
+            document.getElementById('raw-text').textContent = data;
+            
+            const fields = {
+                'DCS': 'lastName',
+                'DCT': 'firstName',
+                'DAC': 'firstName',
+                'DAD': 'middleName',
+                'DBB': 'dob',
+                'DBA': 'exp',
+                'DBD': 'issue',
+                'DAQ': 'license',
+                'DAG': 'street',
+                'DAI': 'city',
+                'DAJ': 'state',
+                'DAK': 'zip',
+                'DBC': 'sex',
+                'DAU': 'height',
+                'DAY': 'eyes',
+            };
+            
+            const parsed = {};
+            
+            for (const [code, fieldName] of Object.entries(fields)) {
+                const regex = new RegExp(code + '([^\\n\\r\\x1c\\x1d\\x1e]+)');
+                const match = data.match(regex);
+                if (match) {
+                    parsed[fieldName] = match[1].trim();
+                }
+            }
+            
+            const setField = (id, value) => {
+                const el = document.getElementById(id);
+                if (value && value.trim()) {
+                    el.textContent = value;
+                    el.className = 'field-value';
+                } else {
+                    el.textContent = '—';
+                    el.className = 'field-value empty';
+                }
+            };
+            
+            // Build full name
+            let fullName = [parsed.firstName, parsed.middleName, parsed.lastName]
+                .filter(Boolean)
+                .join(' ');
+            
+            // Build address
+            let address = [
+                parsed.street,
+                [parsed.city, parsed.state, parsed.zip].filter(Boolean).join(', ')
+            ].filter(Boolean).join('\n');
+            
+            // Format dates (MMDDYYYY to MM/DD/YYYY)
+            const formatDate = (d) => {
+                if (!d || d.length !== 8) return d;
+                return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`;
+            };
+            
+            // Format sex
+            const formatSex = (s) => {
+                if (s === '1') return 'Male';
+                if (s === '2') return 'Female';
+                return s;
+            };
+            
+            // Format height
+            const formatHeight = (h) => {
+                if (!h) return null;
+                const digits = h.replace(/\D/g, '');
+                if (digits.length === 3) {
+                    return `${digits[0]}'${digits.slice(1)}"`;
+                }
+                return h;
+            };
+            
+            setField('field-name', fullName);
+            setField('field-dob', formatDate(parsed.dob));
+            setField('field-license', parsed.license);
+            setField('field-exp', formatDate(parsed.exp));
+            setField('field-issue', formatDate(parsed.issue));
+            setField('field-address', address);
+            setField('field-sex', formatSex(parsed.sex));
+            setField('field-height', formatHeight(parsed.height));
+            setField('field-eyes', parsed.eyes);
+        }
+
+        // Face photo handling
+        document.getElementById('file1').addEventListener('change', (e) => handleFile(e, 1));
+        document.getElementById('file2').addEventListener('change', (e) => handleFile(e, 2));
+
+        function handleFile(event, num) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => setImage(num, e.target.result);
+            reader.readAsDataURL(file);
+        }
+
+        async function setImage(num, dataUrl) {
+            const preview = document.getElementById(`preview${num}`);
+            const img = new Image();
+            img.id = `img${num}`;
+            img.onload = async () => {
+                preview.innerHTML = '';
+                preview.appendChild(img);
+                const canvas = document.createElement('canvas');
+                canvas.id = `canvas${num}`;
+                preview.appendChild(canvas);
+                if (modelsLoaded) await detectAndDraw(num);
+                updateCompareButton();
+            };
+            img.src = dataUrl;
+        }
+
+        async function detectAndDraw(num) {
+            const img = document.getElementById(`img${num}`);
+            const canvas = document.getElementById(`canvas${num}`);
+            const info = document.getElementById(`detection${num}`);
+            
+            if (!img || !canvas) return;
+            
+            info.style.display = 'block';
+            info.textContent = '🔍 Detecting face...';
+            info.className = 'detection-info';
+            
+            try {
+                const detection = await faceapi
+                    .detectSingleFace(img)
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+                
+                detections[num] = detection;
+                
+                const scaleX = img.clientWidth / img.naturalWidth;
+                const scaleY = img.clientHeight / img.naturalHeight;
+                canvas.width = img.clientWidth;
+                canvas.height = img.clientHeight;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (detection) {
+                    const box = detection.detection.box;
+                    const conf = detection.detection.score;
+                    
+                    ctx.strokeStyle = conf > 0.8 ? '#00ff88' : '#ffd700';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(box.x * scaleX, box.y * scaleY, box.width * scaleX, box.height * scaleY);
+                    
+                    ctx.fillStyle = ctx.strokeStyle;
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillText(`${(conf * 100).toFixed(0)}%`, box.x * scaleX, box.y * scaleY - 8);
+                    
+                    info.innerHTML = conf > 0.8 
+                        ? `✅ Face detected (${(conf * 100).toFixed(0)}%)`
+                        : `⚠️ Low confidence (${(conf * 100).toFixed(0)}%)`;
+                    info.className = `detection-info ${conf > 0.8 ? 'good' : 'warning'}`;
+                } else {
+                    info.innerHTML = '❌ No face detected';
+                    info.className = 'detection-info error';
+                }
+            } catch (err) {
+                info.innerHTML = '❌ Error';
+                info.className = 'detection-info error';
+            }
+            updateCompareButton();
+        }
+
+        function updateCompareButton() {
+            document.getElementById('compare-btn').disabled = 
+                !(modelsLoaded && detections[1] && detections[2]);
+        }
+
+        // Camera for face photos
+        async function startCamera(num) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: num === 1 ? 'environment' : 'user', width: 1280, height: 720 }
+                });
+                streams[num] = stream;
+                
+                const video = document.getElementById(`video${num}`);
+                video.srcObject = stream;
+                video.style.display = 'block';
+                
+                document.getElementById(`camera${num}-btn`).style.display = 'none';
+                document.getElementById(`camera${num}-controls`).style.display = 'flex';
+            } catch (err) {
+                alert('Camera error: ' + err.message);
+            }
+        }
+
+        function capturePhoto(num) {
+            const video = document.getElementById(`video${num}`);
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            setImage(num, canvas.toDataURL('image/jpeg', 0.9));
+            stopCamera(num);
+        }
+
+        function stopCamera(num) {
+            if (streams[num]) {
+                streams[num].getTracks().forEach(t => t.stop());
+                streams[num] = null;
+            }
+            document.getElementById(`video${num}`).style.display = 'none';
+            document.getElementById(`camera${num}-btn`).style.display = 'inline-block';
+            document.getElementById(`camera${num}-controls`).style.display = 'none';
+        }
+
+        // Face comparison
+        async function compareFaces() {
+            const btn = document.getElementById('compare-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Comparing...';
+
+            try {
+                const distance = faceapi.euclideanDistance(
+                    detections[1].descriptor,
+                    detections[2].descriptor
+                );
+
+                const isMatch = distance < 0.6;
+                const confidence = distance < 0.4 ? 'HIGH CONFIDENCE' : distance < 0.6 ? 'LIKELY' : '';
+
+                const resultsEl = document.getElementById('results');
+                resultsEl.style.display = 'block';
+                
+                document.getElementById('marker').style.left = Math.min(100, distance * 100) + '%';
+                document.getElementById('marker-value').textContent = distance.toFixed(3);
+                
+                const distanceEl = document.getElementById('distance');
+                distanceEl.textContent = distance.toFixed(4);
+                distanceEl.className = `distance-display ${distance < 0.4 ? 'high' : distance < 0.6 ? 'medium' : 'low'}`;
+
+                const verdictEl = document.getElementById('verdict');
+                verdictEl.textContent = isMatch ? `✅ MATCH ${confidence ? '(' + confidence + ')' : ''}` : '❌ NO MATCH';
+                verdictEl.className = `verdict ${isMatch ? 'match' : 'no-match'}`;
+
+                document.getElementById('details').innerHTML = `
+                    ID Photo: ${(detections[1].detection.score * 100).toFixed(1)}% confidence<br>
+                    Live Photo: ${(detections[2].detection.score * 100).toFixed(1)}% confidence
+                `;
+
+                resultsEl.scrollIntoView({ behavior: 'smooth' });
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔬 Verify Identity';
+                updateCompareButton();
+            }
+        }
+
+        window.addEventListener('load', loadModels);
+    </script>
+</body>
+</html>
