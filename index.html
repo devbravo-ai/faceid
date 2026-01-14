@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID Scanner - Dynamsoft</title>
-    <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.42/dist/dbr.js"></script>
+    <title>ID Scanner - Html5Qrcode</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -25,13 +25,37 @@
             margin-bottom: 20px;
         }
         
-        #scanner-container {
+        #reader {
             width: 100%;
-            height: 400px;
-            background: #000;
             border-radius: 8px;
             overflow: hidden;
-            position: relative;
+        }
+        
+        /* Override html5-qrcode styles */
+        #reader video {
+            border-radius: 8px !important;
+        }
+        #reader__scan_region {
+            background: #000 !important;
+        }
+        #reader__dashboard {
+            background: #16213e !important;
+            color: #eee !important;
+        }
+        #reader__dashboard button {
+            background: #a855f7 !important;
+            color: white !important;
+            border: none !important;
+            padding: 10px 20px !important;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+        }
+        #reader__dashboard select {
+            background: #0a0a15 !important;
+            color: #eee !important;
+            border: 1px solid #444 !important;
+            padding: 8px !important;
+            border-radius: 4px !important;
         }
         
         .btn {
@@ -47,7 +71,6 @@
             margin: 5px;
         }
         .btn:hover { background: #9333ea; }
-        .btn:disabled { background: #444; cursor: not-allowed; }
         .btn-green { background: #00ff88; color: #000; }
         .btn-red { background: #ff4757; }
         
@@ -59,8 +82,8 @@
             margin: 15px 0;
             text-align: center;
         }
-        .status.loading { background: #ffd70022; border: 1px solid #ffd700; }
-        .status.ready { background: #00ff8822; border: 1px solid #00ff88; }
+        .status.scanning { background: #a855f722; border: 1px solid #a855f7; }
+        .status.success { background: #00ff8822; border: 1px solid #00ff88; color: #00ff88; }
         .status.error { background: #ff475722; border: 1px solid #ff4757; }
         
         .result {
@@ -81,13 +104,14 @@
         }
         .field {
             background: #0a0a15;
-            padding: 10px;
+            padding: 12px;
             border-radius: 6px;
         }
         .field-label {
             font-size: 11px;
             color: #888;
             text-transform: uppercase;
+            margin-bottom: 4px;
         }
         .field-value {
             font-size: 16px;
@@ -109,53 +133,74 @@
 
         input[type="file"] { display: none; }
         
-        .note {
-            background: #ffd70022;
-            border: 1px solid #ffd700;
-            border-radius: 8px;
+        .config-box {
+            background: #0a0a15;
             padding: 15px;
+            border-radius: 8px;
             margin-bottom: 20px;
+        }
+        .config-box label {
+            display: block;
+            margin: 10px 0 5px;
+            color: #888;
             font-size: 14px;
         }
-        .note strong { color: #ffd700; }
+        .config-box select, .config-box input {
+            background: #16213e;
+            border: 1px solid #444;
+            color: #eee;
+            padding: 8px 12px;
+            border-radius: 4px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
-    <h1>🪪 ID Barcode Scanner</h1>
-    
-    <div class="note">
-        <strong>ℹ️ Note:</strong> This uses Dynamsoft Barcode Reader which has better PDF417 support than ZXing.
-        The free version shows a watermark and has usage limits, but works much better for driver's licenses.
-    </div>
-    
-    <div id="status" class="status loading">Initializing scanner...</div>
+    <h1>🪪 Driver's License Scanner</h1>
     
     <div class="box">
-        <h2>📊 Scan License Barcode</h2>
-        <div id="scanner-container"></div>
+        <h2>📊 Scan Barcode (Back of License)</h2>
+        
+        <div class="config-box">
+            <label>Scan Mode:</label>
+            <select id="scan-mode">
+                <option value="pdf417">PDF417 Only (Driver's License)</option>
+                <option value="all">All Barcode Types</option>
+            </select>
+            
+            <label>Camera Resolution:</label>
+            <select id="resolution">
+                <option value="1920">1920px (Best quality)</option>
+                <option value="1280" selected>1280px (Balanced)</option>
+                <option value="640">640px (Fastest)</option>
+            </select>
+        </div>
+        
+        <div id="reader"></div>
+        
+        <div id="status" class="status">Click Start to begin scanning</div>
         
         <div class="controls">
             <button class="btn" id="start-btn" onclick="startScanner()">📷 Start Scanner</button>
             <button class="btn btn-red" id="stop-btn" onclick="stopScanner()" style="display:none;">⏹ Stop</button>
-            <label class="btn btn-green" for="file-input">📁 Upload Photo</label>
-            <input type="file" id="file-input" accept="image/*" capture="environment">
+            <label class="btn btn-green" for="file-input">📁 Upload Image</label>
+            <input type="file" id="file-input" accept="image/*">
         </div>
     </div>
     
     <div class="result" id="result">
-        <h3>✅ Barcode Data Extracted</h3>
+        <h3>✅ Barcode Scanned Successfully!</h3>
         <div class="fields" id="fields"></div>
-        <details>
-            <summary style="cursor: pointer; color: #888; margin-top: 15px;">View raw data</summary>
+        <details style="margin-top: 15px;">
+            <summary style="cursor: pointer; color: #888;">View raw barcode data</summary>
             <div class="raw-data" id="raw-data"></div>
         </details>
     </div>
 
     <script>
-        let scanner = null;
-        let cameraEnhancer = null;
+        let html5QrCode = null;
+        let isScanning = false;
         
-        // Parse AAMVA data from driver's license barcode
         function parseAAMVA(data) {
             const fields = {
                 'DCS': 'Last Name',
@@ -166,10 +211,10 @@
                 'DBA': 'Expiration',
                 'DBD': 'Issue Date',
                 'DAQ': 'License Number',
-                'DAG': 'Street',
+                'DAG': 'Street Address',
                 'DAI': 'City',
                 'DAJ': 'State',
-                'DAK': 'ZIP',
+                'DAK': 'ZIP Code',
                 'DBC': 'Sex',
                 'DAU': 'Height',
                 'DAY': 'Eye Color',
@@ -183,20 +228,15 @@
                 if (match) {
                     let value = match[1].trim();
                     
-                    // Format dates
                     if (['Date of Birth', 'Expiration', 'Issue Date'].includes(label) && value.length === 8) {
                         value = `${value.slice(0,2)}/${value.slice(2,4)}/${value.slice(4)}`;
                     }
-                    // Format sex
                     if (label === 'Sex') {
                         value = value === '1' ? 'Male' : value === '2' ? 'Female' : value;
                     }
-                    // Format height
                     if (label === 'Height') {
                         const digits = value.replace(/\D/g, '');
-                        if (digits.length === 3) {
-                            value = `${digits[0]}'${digits.slice(1)}"`;
-                        }
+                        if (digits.length === 3) value = `${digits[0]}'${digits.slice(1)}"`;
                     }
                     
                     parsed[label] = value;
@@ -205,16 +245,17 @@
             return parsed;
         }
         
-        function displayResult(text) {
-            document.getElementById('raw-data').textContent = text;
+        function displayResult(decodedText, decodedResult) {
+            console.log('Barcode found!', decodedResult);
             
-            const parsed = parseAAMVA(text);
+            document.getElementById('raw-data').textContent = decodedText;
+            
+            const parsed = parseAAMVA(decodedText);
             const fieldsEl = document.getElementById('fields');
             fieldsEl.innerHTML = '';
             
-            // Priority order for display
             const order = ['First Name', 'Last Name', 'Date of Birth', 'License Number', 
-                          'Expiration', 'Street', 'City', 'State', 'ZIP', 'Sex', 'Height', 'Eye Color'];
+                          'Expiration', 'Street Address', 'City', 'State', 'ZIP Code', 'Sex', 'Height', 'Eye Color'];
             
             for (const label of order) {
                 if (parsed[label]) {
@@ -228,104 +269,152 @@
             }
             
             document.getElementById('result').style.display = 'block';
-            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('status').textContent = '✅ Barcode found!';
+            document.getElementById('status').className = 'status success';
+            
+            stopScanner();
         }
         
-        async function init() {
-            try {
-                // Use trial license - works but shows watermark
-                Dynamsoft.DBR.BarcodeReader.license = 'DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzMjQ4NzU4LVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzMjQ4NzU4Iiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMTQ1MzA1MTkxMH0=';
-                
-                document.getElementById('status').textContent = 'Loading barcode engine...';
-                
-                // Initialize scanner
-                scanner = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-                
-                // Configure for PDF417 (driver's licenses)
-                let settings = await scanner.getRuntimeSettings();
-                settings.barcodeFormatIds = Dynamsoft.DBR.EnumBarcodeFormat.BF_PDF417 | 
-                                           Dynamsoft.DBR.EnumBarcodeFormat.BF_QR_CODE;
-                settings.expectedBarcodesCount = 1;
-                settings.timeout = 10000;
-                await scanner.updateRuntimeSettings(settings);
-                
-                // Set up UI
-                scanner.setUIElement(document.getElementById('scanner-container'));
-                
-                // Handle results
-                scanner.onFrameRead = results => {
-                    if (results.length > 0) {
-                        console.log('Found barcode:', results[0].barcodeFormatString);
-                        displayResult(results[0].barcodeText);
-                        stopScanner();
-                    }
-                };
-                
-                scanner.onUniqueRead = (txt, result) => {
-                    console.log('Unique read:', result.barcodeFormatString);
-                    displayResult(txt);
-                    stopScanner();
-                };
-                
-                document.getElementById('status').textContent = '✅ Ready! Start scanner or upload an image.';
-                document.getElementById('status').className = 'status ready';
-                
-            } catch (err) {
-                console.error('Init error:', err);
-                document.getElementById('status').textContent = '❌ Error: ' + err.message;
-                document.getElementById('status').className = 'status error';
+        function getFormats() {
+            const mode = document.getElementById('scan-mode').value;
+            if (mode === 'pdf417') {
+                return [Html5QrcodeSupportedFormats.PDF_417];
             }
+            return [
+                Html5QrcodeSupportedFormats.PDF_417,
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.DATA_MATRIX,
+                Html5QrcodeSupportedFormats.AZTEC
+            ];
         }
         
         async function startScanner() {
+            if (isScanning) return;
+            
+            const resolution = parseInt(document.getElementById('resolution').value);
+            
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'inline-block';
+            document.getElementById('status').textContent = 'Starting camera...';
+            document.getElementById('status').className = 'status scanning';
+            
             try {
-                document.getElementById('start-btn').style.display = 'none';
-                document.getElementById('stop-btn').style.display = 'inline-block';
-                document.getElementById('status').textContent = 'Scanning... Point at barcode';
-                document.getElementById('status').className = 'status loading';
+                html5QrCode = new Html5Qrcode("reader", {
+                    formatsToSupport: getFormats(),
+                    verbose: true
+                });
                 
-                await scanner.show();
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 350, height: 150 },
+                    aspectRatio: 1.777,
+                    disableFlip: false,
+                    experimentalFeatures: {
+                        useBarCodeDetectorIfSupported: true
+                    }
+                };
+                
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    displayResult,
+                    (errorMessage) => {
+                        // Ignore - this fires constantly when no barcode found
+                    }
+                );
+                
+                isScanning = true;
+                document.getElementById('status').textContent = 'Scanning... Point at the barcode';
+                
             } catch (err) {
-                console.error('Start error:', err);
-                alert('Error starting scanner: ' + err.message);
+                console.error('Scanner error:', err);
+                document.getElementById('status').textContent = 'Error: ' + err;
+                document.getElementById('status').className = 'status error';
+                document.getElementById('start-btn').style.display = 'inline-block';
+                document.getElementById('stop-btn').style.display = 'none';
             }
         }
         
-        function stopScanner() {
-            scanner.hide();
+        async function stopScanner() {
+            if (html5QrCode && isScanning) {
+                try {
+                    await html5QrCode.stop();
+                } catch (err) {
+                    console.log('Stop error:', err);
+                }
+            }
+            isScanning = false;
             document.getElementById('start-btn').style.display = 'inline-block';
             document.getElementById('stop-btn').style.display = 'none';
-            document.getElementById('status').textContent = '✅ Ready';
-            document.getElementById('status').className = 'status ready';
         }
         
-        // File upload
+        // File upload with rotation attempts
         document.getElementById('file-input').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
             
             document.getElementById('status').textContent = 'Processing image...';
-            document.getElementById('status').className = 'status loading';
+            document.getElementById('status').className = 'status scanning';
             
-            try {
-                const results = await scanner.decode(file);
-                if (results.length > 0) {
-                    displayResult(results[0].barcodeText);
-                    document.getElementById('status').textContent = '✅ Barcode found!';
-                    document.getElementById('status').className = 'status ready';
-                } else {
-                    document.getElementById('status').textContent = '❌ No barcode found in image';
-                    document.getElementById('status').className = 'status error';
+            const tempScanner = new Html5Qrcode("reader", {
+                formatsToSupport: getFormats()
+            });
+            
+            // Try original and rotated versions
+            const rotations = [0, 90, 180, 270];
+            
+            for (const rotation of rotations) {
+                document.getElementById('status').textContent = `Trying ${rotation}° rotation...`;
+                
+                try {
+                    let imageFile = file;
+                    
+                    // Rotate if needed
+                    if (rotation !== 0) {
+                        imageFile = await rotateImage(file, rotation);
+                    }
+                    
+                    const result = await tempScanner.scanFile(imageFile, true);
+                    if (result) {
+                        displayResult(result, { format: 'PDF417' });
+                        return;
+                    }
+                } catch (err) {
+                    console.log(`No barcode at ${rotation}°:`, err);
                 }
-            } catch (err) {
-                console.error('Decode error:', err);
-                document.getElementById('status').textContent = '❌ Error: ' + err.message;
-                document.getElementById('status').className = 'status error';
             }
+            
+            document.getElementById('status').textContent = '❌ No barcode found at any rotation';
+            document.getElementById('status').className = 'status error';
         });
         
-        // Initialize on load
-        init();
+        // Rotate image using canvas
+        function rotateImage(file, degrees) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    if (degrees === 90 || degrees === 270) {
+                        canvas.width = img.height;
+                        canvas.height = img.width;
+                    } else {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                    }
+                    
+                    ctx.translate(canvas.width/2, canvas.height/2);
+                    ctx.rotate(degrees * Math.PI / 180);
+                    ctx.drawImage(img, -img.width/2, -img.height/2);
+                    
+                    canvas.toBlob(blob => {
+                        resolve(new File([blob], 'rotated.jpg', { type: 'image/jpeg' }));
+                    }, 'image/jpeg', 0.95);
+                };
+                img.src = URL.createObjectURL(file);
+            });
+        }
     </script>
 </body>
 </html>
