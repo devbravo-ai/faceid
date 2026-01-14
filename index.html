@@ -3,828 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ID Verification + Barcode Scanner</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <title>ID Scanner - Dynamsoft</title>
+    <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.42/dist/dbr.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 1400px;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             background: #1a1a2e;
             color: #eee;
         }
-        h1 { text-align: center; color: #00d4ff; }
-        .status {
-            text-align: center;
-            padding: 15px;
-            background: #16213e;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        .status.loading { border-left: 4px solid #ffd700; }
-        .status.ready { border-left: 4px solid #00ff88; }
-        .status.error { border-left: 4px solid #ff4757; }
+        h1 { color: #00d4ff; text-align: center; }
+        h2 { color: #a855f7; }
         
-        .main-container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .left-panel { flex: 2; min-width: 300px; }
-        .right-panel { flex: 1; min-width: 300px; }
-        
-        .scanner-section {
+        .box {
             background: #16213e;
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 20px;
         }
-        .scanner-section h2 { margin-top: 0; color: #a855f7; }
         
-        .scanner-container {
-            position: relative;
+        #scanner-container {
             width: 100%;
-            max-width: 500px;
-            margin: 0 auto;
+            height: 400px;
             background: #000;
             border-radius: 8px;
             overflow: hidden;
-        }
-        .scanner-container video { width: 100%; display: block; }
-        .scanner-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            pointer-events: none;
-        }
-        .scanner-target {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 85%;
-            height: 85%;
-            border: 3px solid #a855f7;
-            border-radius: 12px;
-            transition: all 0.3s;
-        }
-        .scanner-target.scanning { animation: pulse 1.5s infinite; }
-        .scanner-target.found {
-            border-color: #00ff88;
-            box-shadow: 0 0 30px #00ff8866;
-            animation: none;
-        }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        
-        .scanner-hint {
-            position: absolute;
-            bottom: 10px; left: 0; right: 0;
-            text-align: center;
-            color: #fff;
-            font-size: 14px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            padding: 8px;
-            background: rgba(0,0,0,0.5);
-        }
-        .scanner-hint.found { background: rgba(0, 255, 136, 0.3); color: #00ff88; }
-        
-        .scanner-placeholder {
-            width: 100%;
-            height: 300px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            gap: 15px;
-            color: #666;
-            background: #0f0f23;
-            border-radius: 8px;
-            text-align: center;
-            padding: 20px;
+            position: relative;
         }
         
         .btn {
             display: inline-block;
-            padding: 12px 24px;
-            background: #00d4ff;
-            color: #1a1a2e;
+            padding: 15px 30px;
+            background: #a855f7;
+            color: white;
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            border-radius: 8px;
             font-size: 16px;
-            font-weight: 600;
-            transition: all 0.2s;
+            font-weight: bold;
+            cursor: pointer;
             margin: 5px;
         }
-        .btn:hover { background: #00a8cc; transform: translateY(-2px); }
-        .btn:disabled { background: #444; cursor: not-allowed; transform: none; }
-        .btn-scanner { background: #a855f7; font-size: 18px; padding: 15px 30px; }
-        .btn-scanner:hover { background: #9333ea; }
-        .btn-primary { background: #00ff88; }
-        .btn-primary:hover { background: #00cc6a; }
-        .btn-secondary { background: #666; }
-        .btn-stop { background: #ff4757; }
+        .btn:hover { background: #9333ea; }
+        .btn:disabled { background: #444; cursor: not-allowed; }
+        .btn-green { background: #00ff88; color: #000; }
+        .btn-red { background: #ff4757; }
         
-        .scanner-controls {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
-        .photo-box {
-            flex: 1;
-            min-width: 280px;
-            max-width: 500px;
-            background: #16213e;
-            border-radius: 12px;
-            padding: 20px;
-        }
-        .photo-box h2 { margin-top: 0; color: #00d4ff; font-size: 1.3em; }
-        .photo-box .subtitle { color: #888; font-size: 14px; margin-top: -10px; margin-bottom: 15px; }
-        .preview {
-            width: 100%;
-            height: 250px;
-            border: 2px dashed #444;
+        .controls { text-align: center; margin: 20px 0; }
+        
+        .status {
+            padding: 15px;
             border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-            background: #0f0f23;
-        }
-        .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .preview canvas {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
-        .preview-placeholder { color: #666; text-align: center; padding: 20px; font-size: 14px; }
-        input[type="file"] { display: none; }
-        
-        .detection-info {
-            margin-top: 12px;
-            padding: 10px;
-            background: #0f0f23;
-            border-radius: 6px;
-            font-size: 13px;
-            display: none;
-        }
-        .detection-info.warning { border-left: 3px solid #ffd700; }
-        .detection-info.good { border-left: 3px solid #00ff88; }
-        .detection-info.error { border-left: 3px solid #ff4757; }
-
-        .data-panel {
-            background: #16213e;
-            border-radius: 12px;
-            padding: 20px;
-            height: fit-content;
-        }
-        .data-panel h2 { margin-top: 0; color: #00d4ff; font-size: 1.3em; }
-        .data-status {
-            padding: 10px;
-            background: #0f0f23;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            font-size: 14px;
-        }
-        .data-status.complete { border-left: 3px solid #00ff88; }
-        
-        .data-source-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            background: #a855f722;
-            color: #a855f7;
-        }
-        
-        .extracted-fields { display: flex; flex-direction: column; gap: 10px; }
-        .field-group { background: #0f0f23; padding: 10px 12px; border-radius: 6px; }
-        .field-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-        .field-value { font-size: 15px; color: #fff; font-weight: 500; }
-        .field-value.empty { color: #666; font-style: italic; }
-        
-        .raw-text-toggle { margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; }
-        .raw-text-toggle summary { cursor: pointer; color: #888; font-size: 13px; }
-        .raw-text {
-            margin-top: 10px;
-            padding: 10px;
-            background: #0f0f23;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 10px;
-            white-space: pre-wrap;
-            max-height: 150px;
-            overflow-y: auto;
-            color: #aaa;
-        }
-
-        .results {
-            margin-top: 30px;
-            padding: 30px;
-            background: #16213e;
-            border-radius: 12px;
+            margin: 15px 0;
             text-align: center;
         }
-        .results h2 { margin-top: 0; }
-        .distance-display { font-size: 48px; font-weight: bold; margin: 20px 0; font-family: monospace; }
-        .distance-display.high { color: #00ff88; }
-        .distance-display.medium { color: #ffd700; }
-        .distance-display.low { color: #ff4757; }
+        .status.loading { background: #ffd70022; border: 1px solid #ffd700; }
+        .status.ready { background: #00ff8822; border: 1px solid #00ff88; }
+        .status.error { background: #ff475722; border: 1px solid #ff4757; }
         
-        .verdict { font-size: 24px; padding: 15px 30px; border-radius: 8px; display: inline-block; }
-        .verdict.match { background: #00ff8822; color: #00ff88; }
-        .verdict.no-match { background: #ff475722; color: #ff4757; }
-        
-        .threshold-bar { margin: 30px auto; max-width: 400px; }
-        .threshold-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 5px; }
-        .threshold-bar-track {
-            height: 20px;
-            background: linear-gradient(to right, #00ff88 0%, #00ff88 40%, #ffd700 40%, #ffd700 60%, #ff4757 60%, #ff4757 100%);
-            border-radius: 10px;
-            position: relative;
+        .result {
+            background: #00ff8822;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
         }
-        .threshold-bar-marker {
-            position: absolute;
-            top: -5px;
-            width: 4px;
-            height: 30px;
-            background: white;
-            border-radius: 2px;
-            transform: translateX(-50%);
-        }
-        .threshold-bar-value { position: absolute; top: -25px; transform: translateX(-50%); font-weight: bold; font-size: 14px; }
+        .result h3 { color: #00ff88; margin-top: 0; }
         
-        .details { margin-top: 20px; font-size: 14px; color: #888; }
+        .fields {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .field {
+            background: #0a0a15;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .field-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+        }
+        .field-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .raw-data {
+            background: #0a0a15;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 200px;
+            overflow: auto;
+            white-space: pre-wrap;
+            margin-top: 15px;
+        }
 
-        .camera-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid #333; }
-        video { width: 100%; border-radius: 8px; }
-        .camera-controls { display: flex; gap: 10px; margin-top: 10px; }
-        .camera-controls .btn { flex: 1; padding: 10px; font-size: 14px; }
+        input[type="file"] { display: none; }
         
-        .rotation-indicator {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.7);
-            color: #a855f7;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 12px;
+        .note {
+            background: #ffd70022;
+            border: 1px solid #ffd700;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
         }
+        .note strong { color: #ffd700; }
     </style>
 </head>
 <body>
-    <h1>🪪 ID Verification System</h1>
+    <h1>🪪 ID Barcode Scanner</h1>
     
-    <div id="status" class="status loading">Loading models...</div>
-
-    <div class="main-container">
-        <div class="left-panel">
-            <div class="scanner-section">
-                <h2>📊 Step 1: Scan License Barcode</h2>
-                <p style="color: #888; margin-top: -10px; margin-bottom: 20px;">
-                    Scan the <strong>BACK</strong> of the driver's license (any orientation works!)
-                </p>
-                
-                <div class="scanner-container" id="scanner-container">
-                    <div class="scanner-placeholder" id="scanner-placeholder">
-                        <span style="font-size: 48px;">📷</span>
-                        <span>Upload a photo or start live scanner</span>
-                    </div>
-                    <video id="scanner-video" playsinline style="display: none;"></video>
-                    <canvas id="scanner-canvas" style="display: none;"></canvas>
-                    <div class="scanner-overlay" id="scanner-overlay" style="display: none;">
-                        <div class="scanner-target scanning" id="scanner-target"></div>
-                        <div class="scanner-hint" id="scanner-hint">Hold steady - trying all orientations...</div>
-                        <div class="rotation-indicator" id="rotation-indicator">Checking: 0°</div>
-                    </div>
-                </div>
-                
-                <div class="scanner-controls">
-                    <label class="btn btn-primary" for="file-barcode">
-                        📷 Upload/Take Photo
-                    </label>
-                    <input type="file" id="file-barcode" accept="image/*" capture="environment">
-                    
-                    <button class="btn btn-scanner" id="start-scanner-btn" onclick="startScanner()">
-                        📹 Live Scanner
-                    </button>
-                    <button class="btn btn-stop" id="stop-scanner-btn" onclick="stopScanner()" style="display: none;">
-                        ✕ Stop
-                    </button>
-                </div>
-                
-                <div class="detection-info" id="barcode-status"></div>
-            </div>
-
-            <div class="container">
-                <div class="photo-box">
-                    <h2>🪪 Step 2: ID Photo (Face)</h2>
-                    <p class="subtitle">Front of ID for face detection</p>
-                    <div class="preview" id="preview1">
-                        <span class="preview-placeholder">📷 Upload front of ID</span>
-                    </div>
-                    <label class="btn" for="file1">📷 Upload/Take Photo</label>
-                    <input type="file" id="file1" accept="image/*" capture="environment">
-                    <div class="detection-info" id="detection1"></div>
-                </div>
-
-                <div class="photo-box">
-                    <h2>🧑 Step 3: Live Photo</h2>
-                    <p class="subtitle">The person to verify</p>
-                    <div class="preview" id="preview2">
-                        <span class="preview-placeholder">📷 Take a selfie</span>
-                    </div>
-                    <label class="btn" for="file2">📷 Take Selfie</label>
-                    <input type="file" id="file2" accept="image/*" capture="user">
-                    <div class="detection-info" id="detection2"></div>
-                </div>
-            </div>
-
-            <div style="text-align: center; margin-top: 30px;">
-                <button class="btn btn-primary" id="compare-btn" onclick="compareFaces()" disabled style="width: 100%; padding: 16px; font-size: 18px;">
-                    🔬 Verify Identity
-                </button>
-            </div>
-
-            <div class="results" id="results" style="display: none;">
-                <h2>Verification Result</h2>
-                <div class="verdict" id="verdict">--</div>
-                <div class="threshold-bar">
-                    <div class="threshold-bar-label">
-                        <span>Strong Match</span>
-                        <span>Likely Match</span>
-                        <span>No Match</span>
-                    </div>
-                    <div class="threshold-bar-track">
-                        <div class="threshold-bar-marker" id="marker" style="left: 0%">
-                            <div class="threshold-bar-value" id="marker-value">0.00</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="distance-display" id="distance">--</div>
-                <div class="details">Euclidean Distance (lower = more similar)</div>
-                <div class="details" id="details" style="margin-top: 30px;"></div>
-            </div>
-        </div>
+    <div class="note">
+        <strong>ℹ️ Note:</strong> This uses Dynamsoft Barcode Reader which has better PDF417 support than ZXing.
+        The free version shows a watermark and has usage limits, but works much better for driver's licenses.
+    </div>
+    
+    <div id="status" class="status loading">Initializing scanner...</div>
+    
+    <div class="box">
+        <h2>📊 Scan License Barcode</h2>
+        <div id="scanner-container"></div>
         
-        <div class="right-panel">
-            <div class="data-panel">
-                <h2>📋 Extracted ID Data</h2>
-                <div class="data-source-badge" id="data-source-badge" style="display: none;">📊 Source: Barcode</div>
-                <div class="data-status" id="data-status">Waiting for barcode scan...</div>
-                
-                <div class="extracted-fields">
-                    <div class="field-group"><div class="field-label">Full Name</div><div class="field-value" id="field-name">—</div></div>
-                    <div class="field-group"><div class="field-label">Date of Birth</div><div class="field-value" id="field-dob">—</div></div>
-                    <div class="field-group"><div class="field-label">License Number</div><div class="field-value" id="field-license">—</div></div>
-                    <div class="field-group"><div class="field-label">Expiration Date</div><div class="field-value" id="field-exp">—</div></div>
-                    <div class="field-group"><div class="field-label">Issue Date</div><div class="field-value" id="field-issue">—</div></div>
-                    <div class="field-group"><div class="field-label">Address</div><div class="field-value" id="field-address">—</div></div>
-                    <div class="field-group"><div class="field-label">Sex</div><div class="field-value" id="field-sex">—</div></div>
-                    <div class="field-group"><div class="field-label">Height</div><div class="field-value" id="field-height">—</div></div>
-                    <div class="field-group"><div class="field-label">Eye Color</div><div class="field-value" id="field-eyes">—</div></div>
-                </div>
-                
-                <details class="raw-text-toggle">
-                    <summary>View raw barcode data</summary>
-                    <div class="raw-text" id="raw-text">No data yet.</div>
-                </details>
-            </div>
+        <div class="controls">
+            <button class="btn" id="start-btn" onclick="startScanner()">📷 Start Scanner</button>
+            <button class="btn btn-red" id="stop-btn" onclick="stopScanner()" style="display:none;">⏹ Stop</button>
+            <label class="btn btn-green" for="file-input">📁 Upload Photo</label>
+            <input type="file" id="file-input" accept="image/*" capture="environment">
         </div>
+    </div>
+    
+    <div class="result" id="result">
+        <h3>✅ Barcode Data Extracted</h3>
+        <div class="fields" id="fields"></div>
+        <details>
+            <summary style="cursor: pointer; color: #888; margin-top: 15px;">View raw data</summary>
+            <div class="raw-data" id="raw-data"></div>
+        </details>
     </div>
 
     <script>
-        // State
-        let modelsLoaded = false;
-        let detections = { 1: null, 2: null };
-        let codeReader = null;
-        let scannerStream = null;
-        let isScanning = false;
-        let scanInterval = null;
-
-        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
-
-        // Initialize
-        async function loadModels() {
-            const statusEl = document.getElementById('status');
-            try {
-                statusEl.textContent = 'Loading face detection...';
-                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-                
-                statusEl.textContent = 'Initializing barcode scanner...';
-                // Use multiple formats and try harder
-                const hints = new Map();
-                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-                    ZXing.BarcodeFormat.PDF_417,
-                    ZXing.BarcodeFormat.QR_CODE,
-                    ZXing.BarcodeFormat.DATA_MATRIX
-                ]);
-                hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-                codeReader = new ZXing.BrowserMultiFormatReader(hints);
-                
-                modelsLoaded = true;
-                statusEl.textContent = '✅ Ready! Upload or scan the barcode on the back of the ID.';
-                statusEl.className = 'status ready';
-            } catch (err) {
-                statusEl.textContent = '❌ Error: ' + err.message;
-                statusEl.className = 'status error';
-                console.error(err);
-            }
-        }
-
-        // Rotate image using canvas
-        function rotateImage(img, degrees) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            if (degrees === 90 || degrees === 270) {
-                canvas.width = img.height;
-                canvas.height = img.width;
-            } else {
-                canvas.width = img.width;
-                canvas.height = img.height;
-            }
-            
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(degrees * Math.PI / 180);
-            ctx.drawImage(img, -img.width / 2, -img.height / 2);
-            
-            return canvas;
-        }
-
-        // Try decoding barcode at multiple rotations
-        async function tryDecodeWithRotations(img) {
-            const rotations = [0, 90, 180, 270];
-            const statusEl = document.getElementById('barcode-status');
-            
-            for (const rotation of rotations) {
-                statusEl.innerHTML = `🔍 Trying ${rotation}° rotation...`;
-                
-                try {
-                    let targetCanvas;
-                    if (rotation === 0) {
-                        // Use original image
-                        targetCanvas = document.createElement('canvas');
-                        targetCanvas.width = img.width;
-                        targetCanvas.height = img.height;
-                        targetCanvas.getContext('2d').drawImage(img, 0, 0);
-                    } else {
-                        targetCanvas = rotateImage(img, rotation);
-                    }
-                    
-                    // Try to decode
-                    const result = await codeReader.decodeFromCanvas(targetCanvas);
-                    if (result && result.text) {
-                        console.log(`Success at ${rotation}°:`, result.text);
-                        return { result, rotation };
-                    }
-                } catch (err) {
-                    console.log(`No barcode at ${rotation}°`);
-                }
-            }
-            
-            return null;
-        }
-
-        // File upload handler
-        document.getElementById('file-barcode').addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const statusEl = document.getElementById('barcode-status');
-            statusEl.style.display = 'block';
-            statusEl.textContent = '🔍 Loading image...';
-            statusEl.className = 'detection-info';
-            
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const img = new Image();
-                img.onload = async () => {
-                    // Show the image in the placeholder
-                    const placeholder = document.getElementById('scanner-placeholder');
-                    placeholder.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; max-height: 300px;">`;
-                    
-                    statusEl.textContent = '🔍 Scanning for barcode (trying all orientations)...';
-                    
-                    try {
-                        const decoded = await tryDecodeWithRotations(img);
-                        
-                        if (decoded) {
-                            statusEl.innerHTML = `✅ Barcode found at ${decoded.rotation}° rotation!`;
-                            statusEl.className = 'detection-info good';
-                            onBarcodeDetected(decoded.result.text);
-                        } else {
-                            statusEl.innerHTML = `⚠️ Could not read barcode. Tips:<br>
-                                • Make sure barcode is clearly visible<br>
-                                • Try better lighting<br>
-                                • Get closer to the barcode<br>
-                                • Avoid glare`;
-                            statusEl.className = 'detection-info warning';
-                        }
-                    } catch (err) {
-                        console.error('Barcode error:', err);
-                        statusEl.innerHTML = '❌ Error scanning: ' + err.message;
-                        statusEl.className = 'detection-info error';
-                    }
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // Live scanner with rotation attempts
-        async function startScanner() {
-            if (isScanning) return;
-            
-            const video = document.getElementById('scanner-video');
-            const placeholder = document.getElementById('scanner-placeholder');
-            const overlay = document.getElementById('scanner-overlay');
-            const startBtn = document.getElementById('start-scanner-btn');
-            const stopBtn = document.getElementById('stop-scanner-btn');
-            const statusEl = document.getElementById('barcode-status');
-            const rotationIndicator = document.getElementById('rotation-indicator');
-            
-            try {
-                scannerStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-                });
-                
-                video.srcObject = scannerStream;
-                await video.play();
-                
-                video.style.display = 'block';
-                placeholder.style.display = 'none';
-                overlay.style.display = 'block';
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'inline-block';
-                statusEl.style.display = 'block';
-                statusEl.textContent = '🔍 Scanning...';
-                statusEl.className = 'detection-info';
-                
-                isScanning = true;
-                
-                // Periodically capture and try rotations
-                let rotationIndex = 0;
-                const rotations = [0, 90, 180, 270];
-                
-                scanInterval = setInterval(async () => {
-                    if (!isScanning) return;
-                    
-                    const rotation = rotations[rotationIndex % rotations.length];
-                    rotationIndicator.textContent = `Trying: ${rotation}°`;
-                    
-                    try {
-                        // Capture frame
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        canvas.getContext('2d').drawImage(video, 0, 0);
-                        
-                        // Rotate if needed
-                        let targetCanvas = canvas;
-                        if (rotation !== 0) {
-                            targetCanvas = rotateImage(canvas, rotation);
-                        }
-                        
-                        // Try decode
-                        const result = await codeReader.decodeFromCanvas(targetCanvas);
-                        if (result && result.text) {
-                            console.log(`Found barcode at ${rotation}°`);
-                            onBarcodeDetected(result.text);
-                            stopScanner();
-                        }
-                    } catch (err) {
-                        // No barcode found, continue
-                    }
-                    
-                    rotationIndex++;
-                }, 500); // Try every 500ms
-                
-            } catch (err) {
-                alert('Could not access camera: ' + err.message);
-                console.error(err);
-            }
-        }
-
-        function stopScanner() {
-            isScanning = false;
-            
-            if (scanInterval) {
-                clearInterval(scanInterval);
-                scanInterval = null;
-            }
-            
-            if (scannerStream) {
-                scannerStream.getTracks().forEach(track => track.stop());
-                scannerStream = null;
-            }
-            
-            const video = document.getElementById('scanner-video');
-            const placeholder = document.getElementById('scanner-placeholder');
-            const overlay = document.getElementById('scanner-overlay');
-            const startBtn = document.getElementById('start-scanner-btn');
-            const stopBtn = document.getElementById('stop-scanner-btn');
-            
-            video.style.display = 'none';
-            placeholder.style.display = 'flex';
-            overlay.style.display = 'none';
-            startBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'none';
-        }
-
-        function onBarcodeDetected(data) {
-            const target = document.getElementById('scanner-target');
-            const hint = document.getElementById('scanner-hint');
-            const statusEl = document.getElementById('barcode-status');
-            
-            if (target) target.className = 'scanner-target found';
-            if (hint) {
-                hint.className = 'scanner-hint found';
-                hint.textContent = '✅ Barcode captured!';
-            }
-            
-            parseAAMVA(data);
-            
-            document.getElementById('data-source-badge').style.display = 'inline-block';
-            document.getElementById('data-status').textContent = '✅ Data extracted!';
-            document.getElementById('data-status').className = 'data-status complete';
-            
-            statusEl.textContent = '✅ Barcode scanned successfully!';
-            statusEl.className = 'detection-info good';
-        }
-
-        // Parse AAMVA barcode data
+        let scanner = null;
+        let cameraEnhancer = null;
+        
+        // Parse AAMVA data from driver's license barcode
         function parseAAMVA(data) {
-            document.getElementById('raw-text').textContent = data;
-            
             const fields = {
-                'DCS': 'lastName', 'DCT': 'firstName', 'DAC': 'firstName', 'DAD': 'middleName',
-                'DBB': 'dob', 'DBA': 'exp', 'DBD': 'issue', 'DAQ': 'license',
-                'DAG': 'street', 'DAI': 'city', 'DAJ': 'state', 'DAK': 'zip',
-                'DBC': 'sex', 'DAU': 'height', 'DAY': 'eyes',
+                'DCS': 'Last Name',
+                'DCT': 'First Name',
+                'DAC': 'First Name',
+                'DAD': 'Middle Name',
+                'DBB': 'Date of Birth',
+                'DBA': 'Expiration',
+                'DBD': 'Issue Date',
+                'DAQ': 'License Number',
+                'DAG': 'Street',
+                'DAI': 'City',
+                'DAJ': 'State',
+                'DAK': 'ZIP',
+                'DBC': 'Sex',
+                'DAU': 'Height',
+                'DAY': 'Eye Color',
+                'DAW': 'Weight',
             };
             
             const parsed = {};
-            for (const [code, fieldName] of Object.entries(fields)) {
+            for (const [code, label] of Object.entries(fields)) {
                 const regex = new RegExp(code + '([^\\n\\r\\x1c\\x1d\\x1e]+)');
                 const match = data.match(regex);
-                if (match) parsed[fieldName] = match[1].trim();
+                if (match) {
+                    let value = match[1].trim();
+                    
+                    // Format dates
+                    if (['Date of Birth', 'Expiration', 'Issue Date'].includes(label) && value.length === 8) {
+                        value = `${value.slice(0,2)}/${value.slice(2,4)}/${value.slice(4)}`;
+                    }
+                    // Format sex
+                    if (label === 'Sex') {
+                        value = value === '1' ? 'Male' : value === '2' ? 'Female' : value;
+                    }
+                    // Format height
+                    if (label === 'Height') {
+                        const digits = value.replace(/\D/g, '');
+                        if (digits.length === 3) {
+                            value = `${digits[0]}'${digits.slice(1)}"`;
+                        }
+                    }
+                    
+                    parsed[label] = value;
+                }
+            }
+            return parsed;
+        }
+        
+        function displayResult(text) {
+            document.getElementById('raw-data').textContent = text;
+            
+            const parsed = parseAAMVA(text);
+            const fieldsEl = document.getElementById('fields');
+            fieldsEl.innerHTML = '';
+            
+            // Priority order for display
+            const order = ['First Name', 'Last Name', 'Date of Birth', 'License Number', 
+                          'Expiration', 'Street', 'City', 'State', 'ZIP', 'Sex', 'Height', 'Eye Color'];
+            
+            for (const label of order) {
+                if (parsed[label]) {
+                    fieldsEl.innerHTML += `
+                        <div class="field">
+                            <div class="field-label">${label}</div>
+                            <div class="field-value">${parsed[label]}</div>
+                        </div>
+                    `;
+                }
             }
             
-            const setField = (id, value) => {
-                const el = document.getElementById(id);
-                if (value && value.trim()) {
-                    el.textContent = value;
-                    el.className = 'field-value';
-                } else {
-                    el.textContent = '—';
-                    el.className = 'field-value empty';
-                }
-            };
-            
-            let fullName = [parsed.firstName, parsed.middleName, parsed.lastName].filter(Boolean).join(' ');
-            let address = [parsed.street, [parsed.city, parsed.state, parsed.zip].filter(Boolean).join(', ')].filter(Boolean).join('\n');
-            
-            const formatDate = (d) => (!d || d.length !== 8) ? d : `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`;
-            const formatSex = (s) => s === '1' ? 'Male' : s === '2' ? 'Female' : s;
-            const formatHeight = (h) => {
-                if (!h) return null;
-                const digits = h.replace(/\D/g, '');
-                return digits.length === 3 ? `${digits[0]}'${digits.slice(1)}"` : h;
-            };
-            
-            setField('field-name', fullName);
-            setField('field-dob', formatDate(parsed.dob));
-            setField('field-license', parsed.license);
-            setField('field-exp', formatDate(parsed.exp));
-            setField('field-issue', formatDate(parsed.issue));
-            setField('field-address', address);
-            setField('field-sex', formatSex(parsed.sex));
-            setField('field-height', formatHeight(parsed.height));
-            setField('field-eyes', parsed.eyes);
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
         }
-
-        // Face photo handling
-        document.getElementById('file1').addEventListener('change', (e) => handleFaceFile(e, 1));
-        document.getElementById('file2').addEventListener('change', (e) => handleFaceFile(e, 2));
-
-        function handleFaceFile(event, num) {
-            const file = event.target.files[0];
+        
+        async function init() {
+            try {
+                // Use trial license - works but shows watermark
+                Dynamsoft.DBR.BarcodeReader.license = 'DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzMjQ4NzU4LVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzMjQ4NzU4Iiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMTQ1MzA1MTkxMH0=';
+                
+                document.getElementById('status').textContent = 'Loading barcode engine...';
+                
+                // Initialize scanner
+                scanner = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+                
+                // Configure for PDF417 (driver's licenses)
+                let settings = await scanner.getRuntimeSettings();
+                settings.barcodeFormatIds = Dynamsoft.DBR.EnumBarcodeFormat.BF_PDF417 | 
+                                           Dynamsoft.DBR.EnumBarcodeFormat.BF_QR_CODE;
+                settings.expectedBarcodesCount = 1;
+                settings.timeout = 10000;
+                await scanner.updateRuntimeSettings(settings);
+                
+                // Set up UI
+                scanner.setUIElement(document.getElementById('scanner-container'));
+                
+                // Handle results
+                scanner.onFrameRead = results => {
+                    if (results.length > 0) {
+                        console.log('Found barcode:', results[0].barcodeFormatString);
+                        displayResult(results[0].barcodeText);
+                        stopScanner();
+                    }
+                };
+                
+                scanner.onUniqueRead = (txt, result) => {
+                    console.log('Unique read:', result.barcodeFormatString);
+                    displayResult(txt);
+                    stopScanner();
+                };
+                
+                document.getElementById('status').textContent = '✅ Ready! Start scanner or upload an image.';
+                document.getElementById('status').className = 'status ready';
+                
+            } catch (err) {
+                console.error('Init error:', err);
+                document.getElementById('status').textContent = '❌ Error: ' + err.message;
+                document.getElementById('status').className = 'status error';
+            }
+        }
+        
+        async function startScanner() {
+            try {
+                document.getElementById('start-btn').style.display = 'none';
+                document.getElementById('stop-btn').style.display = 'inline-block';
+                document.getElementById('status').textContent = 'Scanning... Point at barcode';
+                document.getElementById('status').className = 'status loading';
+                
+                await scanner.show();
+            } catch (err) {
+                console.error('Start error:', err);
+                alert('Error starting scanner: ' + err.message);
+            }
+        }
+        
+        function stopScanner() {
+            scanner.hide();
+            document.getElementById('start-btn').style.display = 'inline-block';
+            document.getElementById('stop-btn').style.display = 'none';
+            document.getElementById('status').textContent = '✅ Ready';
+            document.getElementById('status').className = 'status ready';
+        }
+        
+        // File upload
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => setFaceImage(num, e.target.result);
-            reader.readAsDataURL(file);
-        }
-
-        async function setFaceImage(num, dataUrl) {
-            const preview = document.getElementById(`preview${num}`);
-            const img = new Image();
-            img.id = `img${num}`;
-            img.onload = async () => {
-                preview.innerHTML = '';
-                preview.appendChild(img);
-                const canvas = document.createElement('canvas');
-                canvas.id = `canvas${num}`;
-                preview.appendChild(canvas);
-                if (modelsLoaded) await detectFace(num);
-                updateCompareButton();
-            };
-            img.src = dataUrl;
-        }
-
-        async function detectFace(num) {
-            const img = document.getElementById(`img${num}`);
-            const canvas = document.getElementById(`canvas${num}`);
-            const info = document.getElementById(`detection${num}`);
             
-            if (!img || !canvas) return;
-            
-            info.style.display = 'block';
-            info.textContent = '🔍 Detecting face...';
-            info.className = 'detection-info';
+            document.getElementById('status').textContent = 'Processing image...';
+            document.getElementById('status').className = 'status loading';
             
             try {
-                const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
-                detections[num] = detection;
-                
-                const scaleX = img.clientWidth / img.naturalWidth;
-                const scaleY = img.clientHeight / img.naturalHeight;
-                canvas.width = img.clientWidth;
-                canvas.height = img.clientHeight;
-                
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                if (detection) {
-                    const box = detection.detection.box;
-                    const conf = detection.detection.score;
-                    
-                    ctx.strokeStyle = conf > 0.8 ? '#00ff88' : '#ffd700';
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(box.x * scaleX, box.y * scaleY, box.width * scaleX, box.height * scaleY);
-                    ctx.fillStyle = ctx.strokeStyle;
-                    ctx.font = 'bold 14px sans-serif';
-                    ctx.fillText(`${(conf * 100).toFixed(0)}%`, box.x * scaleX, box.y * scaleY - 8);
-                    
-                    info.innerHTML = conf > 0.8 ? `✅ Face detected (${(conf * 100).toFixed(0)}%)` : `⚠️ Low confidence (${(conf * 100).toFixed(0)}%)`;
-                    info.className = `detection-info ${conf > 0.8 ? 'good' : 'warning'}`;
+                const results = await scanner.decode(file);
+                if (results.length > 0) {
+                    displayResult(results[0].barcodeText);
+                    document.getElementById('status').textContent = '✅ Barcode found!';
+                    document.getElementById('status').className = 'status ready';
                 } else {
-                    info.innerHTML = '❌ No face detected';
-                    info.className = 'detection-info error';
+                    document.getElementById('status').textContent = '❌ No barcode found in image';
+                    document.getElementById('status').className = 'status error';
                 }
             } catch (err) {
-                info.innerHTML = '❌ Error';
-                info.className = 'detection-info error';
+                console.error('Decode error:', err);
+                document.getElementById('status').textContent = '❌ Error: ' + err.message;
+                document.getElementById('status').className = 'status error';
             }
-            updateCompareButton();
-        }
-
-        function updateCompareButton() {
-            document.getElementById('compare-btn').disabled = !(modelsLoaded && detections[1] && detections[2]);
-        }
-
-        async function compareFaces() {
-            const btn = document.getElementById('compare-btn');
-            btn.disabled = true;
-            btn.textContent = '⏳ Comparing...';
-
-            try {
-                const distance = faceapi.euclideanDistance(detections[1].descriptor, detections[2].descriptor);
-                const isMatch = distance < 0.6;
-                const confidence = distance < 0.4 ? 'HIGH CONFIDENCE' : distance < 0.6 ? 'LIKELY' : '';
-
-                document.getElementById('results').style.display = 'block';
-                document.getElementById('marker').style.left = Math.min(100, distance * 100) + '%';
-                document.getElementById('marker-value').textContent = distance.toFixed(3);
-                
-                const distanceEl = document.getElementById('distance');
-                distanceEl.textContent = distance.toFixed(4);
-                distanceEl.className = `distance-display ${distance < 0.4 ? 'high' : distance < 0.6 ? 'medium' : 'low'}`;
-
-                const verdictEl = document.getElementById('verdict');
-                verdictEl.textContent = isMatch ? `✅ MATCH ${confidence ? '(' + confidence + ')' : ''}` : '❌ NO MATCH';
-                verdictEl.className = `verdict ${isMatch ? 'match' : 'no-match'}`;
-
-                document.getElementById('details').innerHTML = `ID: ${(detections[1].detection.score * 100).toFixed(1)}% • Live: ${(detections[2].detection.score * 100).toFixed(1)}%`;
-                document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
-            } catch (err) {
-                alert('Error: ' + err.message);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🔬 Verify Identity';
-                updateCompareButton();
-            }
-        }
-
-        window.addEventListener('load', loadModels);
+        });
+        
+        // Initialize on load
+        init();
     </script>
 </body>
 </html>
